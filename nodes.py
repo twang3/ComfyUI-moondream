@@ -42,16 +42,23 @@ class MoondreamQuery:
         vision_encoder = VisionEncoder(checkpoint_path)
         text_model = TextModel(checkpoint_path)
         answer_dict = {}
-        for i in range(batch_size):
-            image = Image.fromarray(np.clip(255. * images[i].cpu().numpy(),0,255).astype(np.uint8))
+        if batch_size > 1:
+            for i in range(batch_size):
+                image = Image.fromarray(np.clip(255. * images[i].cpu().numpy(),0,255).astype(np.uint8))
+                image_embeds = vision_encoder(image)
+                answer = text_model.answer_question(image_embeds, question)
+                answer_dict[str(i)] = answer
+
+            formatted_answers = ",\n".join([f'"{frame}" : "{answer}"' for frame, answer in answer_dict.items()])
+            formatted_output = "{\n" + formatted_answers + "\n}"
+            print(formatted_output)
+            return formatted_output,
+        else:
+            image = Image.fromarray(np.clip(255. * images[0].cpu().numpy(),0,255).astype(np.uint8))
             image_embeds = vision_encoder(image)
             answer = text_model.answer_question(image_embeds, question)
-            answer_dict[str(i)] = answer
-
-        formatted_answers = ",\n".join([f'"{frame}" : "{answer}"' for frame, answer in answer_dict.items()])
-        formatted_output = "{\n" + formatted_answers + "\n}"
-        print(formatted_output)
-        return formatted_output,
+            return answer,
+        
 
 
 NODE_CLASS_MAPPINGS = {
