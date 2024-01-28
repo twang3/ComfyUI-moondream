@@ -1,0 +1,62 @@
+import os
+from PIL import Image
+import numpy as np
+import comfy.utils
+import comfy.model_management
+
+from .moondream import VisionEncoder, TextModel
+
+script_directory = os.path.dirname(os.path.abspath(__file__))
+
+class MoondreamQuery:
+    @classmethod
+    def INPUT_TYPES(s):
+        return {"required": {  
+            "images": ("IMAGE", ),
+            "question": ("STRING", {"multiline": True, "default": "What is this?",}),
+            },
+            }
+    
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES =("text",)
+    FUNCTION = "process"
+
+    CATEGORY = "Moondream"
+
+    def process(self, images, question):
+        batch_size = images.shape[0]
+        
+        device = comfy.model_management.get_torch_device()
+        checkpoint_path = os.path.join(script_directory, f"checkpoints/moondream1")
+
+        if os.path.exists(checkpoint_path):
+                checkpoint_path = checkpoint_path
+        else:
+            try:
+                from huggingface_hub import snapshot_download
+                snapshot_download(repo_id=f"vikhyatk/moondream1", local_dir=checkpoint_path, local_dir_use_symlinks=False)
+            except:
+                raise FileNotFoundError("No model found.")
+       
+
+        vision_encoder = VisionEncoder(checkpoint_path)
+        text_model = TextModel(checkpoint_path)
+        answer_dict = {}
+        for i in range(batch_size):
+            image = Image.fromarray(np.clip(255. * images[i].cpu().numpy(),0,255).astype(np.uint8))
+            image_embeds = vision_encoder(image)
+            answer = text_model.answer_question(image_embeds, question)
+            answer_dict[str(i)] = answer
+
+        formatted_answers = ",\n".join([f'"{frame}" : "{answer}"' for frame, answer in answer_dict.items()])
+        formatted_output = "{\n" + formatted_answers + "\n}"
+        print(formatted_output)
+        return formatted_output,
+
+
+NODE_CLASS_MAPPINGS = {
+    "MoondreamQuery": MoondreamQuery,
+}
+NODE_DISPLAY_NAME_MAPPINGS = {
+    "MoondreamQuery": "MoondreamQuery",
+}

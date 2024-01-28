@@ -26,7 +26,7 @@ class TextModel:
             self.model,
             f"{model_path}/text_model.pt",
             device_map={"": self.device.type},
-        )
+        ).half()
 
         self.text_emb = self.model.get_input_embeddings().to(self.device)
 

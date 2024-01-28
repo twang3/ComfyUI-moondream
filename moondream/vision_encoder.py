@@ -15,12 +15,12 @@ class VisionEncoder:
     def __init__(self, model_path: str = "model") -> None:
         # Determine if CUDA (GPU) is available and use it; otherwise, use CPU
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model = torch.jit.load(f"{model_path}/vision.pt").to(self.device).to(dtype=torch.float32)
+        self.model = torch.jit.load(f"{model_path}/vision.pt").to(self.device).to(dtype=torch.float16)
         self.preprocess = Compose(
             [
                 Resize(size=(384, 384), interpolation=InterpolationMode.BICUBIC),
                 ToImage(),
-                ToDtype(torch.float32, scale=True),
+                ToDtype(torch.float16, scale=True),
                 Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]),
             ]
         )
