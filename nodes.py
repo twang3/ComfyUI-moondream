@@ -38,13 +38,15 @@ class MoondreamQuery:
 
         if not hasattr(self, "moondream") or self.moondream is None:
             if os.path.exists(checkpoint_path):
+                model_safetensors_path = os.path.join(checkpoint_path, "model.safetensors")
+                if os.path.exists(model_safetensors_path):
                     checkpoint_path = checkpoint_path
-            else:
-                try:
-                    from huggingface_hub import snapshot_download
-                    snapshot_download(repo_id=f"vikhyatk/moondream1", ignore_patterns=["*.jpg","*.pt","*.bin", "*0000*"],local_dir=checkpoint_path, local_dir_use_symlinks=False)
-                except:
-                    raise FileNotFoundError("No model found.")
+                else:
+                    try:
+                        from huggingface_hub import snapshot_download
+                        snapshot_download(repo_id=f"vikhyatk/moondream1", ignore_patterns=["*.jpg","*.pt","*.bin", "*0000*"],local_dir=checkpoint_path, local_dir_use_symlinks=False)
+                    except:
+                        raise FileNotFoundError("No model found.")
 
             self.tokenizer = Tokenizer.from_pretrained(checkpoint_path)
             self.moondream = Moondream.from_pretrained(checkpoint_path).to(device=device, dtype=dtype)
