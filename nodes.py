@@ -40,7 +40,7 @@ class MoondreamQuery:
         else:
             try:
                 from huggingface_hub import snapshot_download
-                snapshot_download(repo_id=f"vikhyatk/moondream1", ignore_patterns=["*.pt","*.bin"],local_dir=checkpoint_path, local_dir_use_symlinks=False)
+                snapshot_download(repo_id=f"vikhyatk/moondream1", ignore_patterns=["*.jpg","*.pt","*.bin", "*0000*"],local_dir=checkpoint_path, local_dir_use_symlinks=False)
             except:
                 raise FileNotFoundError("No model found.")
        
