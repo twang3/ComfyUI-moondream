@@ -6,20 +6,26 @@ import comfy.utils
 import comfy.model_management
 
 from .moondream import Moondream
-from transformers import (
-    TextIteratorStreamer,
-    CodeGenTokenizerFast as Tokenizer,
-)
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
 class MoondreamQuery:
+    def __init__(self):
+        self.selected_model = None
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {  
             "images": ("IMAGE", ),
             "question": ("STRING", {"multiline": True, "default": "What is this?",}),
             "keep_model_loaded": ("BOOLEAN", {"default": True}),
+            "model": (
+            [   
+                'moondream1',
+                'moondream2',
+            ], {
+               "default": 'moondream2'
+            }),
             },
             }
     
@@ -29,26 +35,27 @@ class MoondreamQuery:
 
     CATEGORY = "Moondream"
 
-    def process(self, images, question, keep_model_loaded):
+    def process(self, images, question, keep_model_loaded, model):
         batch_size = images.shape[0]
         device = comfy.model_management.get_torch_device()
         dtype = torch.float16 if comfy.model_management.should_use_fp16() and not comfy.model_management.is_device_mps(device) else torch.float32
         
-        checkpoint_path = os.path.join(script_directory, f"checkpoints/moondream1")
+        checkpoint_path = os.path.join(script_directory, f"checkpoints/{model}")
 
-        if not hasattr(self, "moondream") or self.moondream is None:
+        if not hasattr(self, "moondream") or self.moondream is None or self.selected_model != model:
+            self.selected_model = model
             model_safetensors_path = os.path.join(checkpoint_path, "model.safetensors")
             if os.path.exists(model_safetensors_path):
                 checkpoint_path = checkpoint_path
             else:
                 try:
                     from huggingface_hub import snapshot_download
-                    snapshot_download(repo_id=f"vikhyatk/moondream1", ignore_patterns=["*.jpg","*.pt","*.bin", "*0000*"],local_dir=checkpoint_path, local_dir_use_symlinks=False)
+                    snapshot_download(repo_id=f"vikhyatk/{model}", ignore_patterns=["*.jpg","*.pt","*.bin", "*0000*"],local_dir=checkpoint_path, local_dir_use_symlinks=False)
                 except:
                     raise FileNotFoundError("No model found.")
 
-            self.tokenizer = Tokenizer.from_pretrained(checkpoint_path)
-            self.moondream = Moondream.from_pretrained(checkpoint_path).to(device=device, dtype=dtype)
+            self.tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+            self.moondream = AutoModelForCausalLM.from_pretrained(checkpoint_path, trust_remote_code=True).to(device=device, dtype=dtype)
             self.moondream.eval()
 
         answer_dict = {}

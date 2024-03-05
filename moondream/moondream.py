@@ -98,7 +98,7 @@ class Moondream(PreTrainedModel):
             max_new_tokens=256,
             **kwargs,
         )[0]
-        cleaned_answer = re.sub("<$", "", re.sub("END$", "", answer)).strip()
+        cleaned_answer = re.sub("<$|<END$", "", answer).strip()
 
         # Use the result_queue to pass the result if it is provided
         if result_queue:
