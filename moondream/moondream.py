@@ -1,5 +1,4 @@
 import torch
-from torch import nn
 from .vision_encoder import VisionEncoder
 from .configuration_moondream import MoondreamConfig
 from transformers import PreTrainedModel
@@ -70,7 +69,7 @@ class Moondream(PreTrainedModel):
             "pad_token_id": tokenizer.eos_token_id,
             "max_new_tokens": max_new_tokens,
             **kwargs,
-        }
+        }    
 
         with torch.no_grad():
             inputs_embeds = self.input_embeds(prompt, image_embeds, tokenizer)
@@ -85,6 +84,7 @@ class Moondream(PreTrainedModel):
         image_embeds,
         question,
         tokenizer,
+        max_new_tokens,
         chat_history="",
         result_queue=None,
         **kwargs,
@@ -95,7 +95,7 @@ class Moondream(PreTrainedModel):
             prompt,
             eos_text="<END>",
             tokenizer=tokenizer,
-            max_new_tokens=256,
+            max_new_tokens=max_new_tokens,
             **kwargs,
         )[0]
         cleaned_answer = re.sub("<$|<END$", "", answer).strip()

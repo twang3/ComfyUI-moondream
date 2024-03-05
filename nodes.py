@@ -26,6 +26,10 @@ class MoondreamQuery:
             ], {
                "default": 'moondream2'
             }),
+            
+            },
+            "optional": {
+                "max_new_tokens": ("INT", {"default": 256}),
             },
             }
     
@@ -35,7 +39,7 @@ class MoondreamQuery:
 
     CATEGORY = "Moondream"
 
-    def process(self, images, question, keep_model_loaded, model):
+    def process(self, images, question, keep_model_loaded, model, max_new_tokens=256):
         batch_size = images.shape[0]
         device = comfy.model_management.get_torch_device()
         dtype = torch.float16 if comfy.model_management.should_use_fp16() and not comfy.model_management.is_device_mps(device) else torch.float32
@@ -55,7 +59,7 @@ class MoondreamQuery:
                     raise FileNotFoundError("No model found.")
 
             self.tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
-            self.moondream = AutoModelForCausalLM.from_pretrained(checkpoint_path, trust_remote_code=True).to(device=device, dtype=dtype)
+            self.moondream = Moondream.from_pretrained(checkpoint_path).to(device=device, dtype=dtype)
             self.moondream.eval()
 
         answer_dict = {}
@@ -63,7 +67,7 @@ class MoondreamQuery:
             for i in range(batch_size):
                 image = Image.fromarray(np.clip(255. * images[i].cpu().numpy(),0,255).astype(np.uint8))
                 image_embeds = self.moondream.encode_image(image)
-                answer = self.moondream.answer_question(image_embeds, question, self.tokenizer)
+                answer = self.moondream.answer_question(image_embeds, question, self.tokenizer, max_new_tokens)
                 answer_dict[str(i)] = answer
 
             formatted_answers = ",\n".join([f'"{frame}" : "{answer}"' for frame, answer in answer_dict.items()])
@@ -74,7 +78,7 @@ class MoondreamQuery:
         else:
             image = Image.fromarray(np.clip(255. * images[0].cpu().numpy(),0,255).astype(np.uint8))
             image_embeds = self.moondream.encode_image(image)
-            answer = self.moondream.answer_question(image_embeds, question, self.tokenizer)
+            answer = self.moondream.answer_question(image_embeds, question, self.tokenizer, max_new_tokens)
 
         if not keep_model_loaded:
             self.moondream = None
