@@ -6,18 +6,16 @@ import torch
 import numpy as np
 import comfy.utils
 import comfy.model_management
+from comfy_extras.nodes_cache import load_model_cached
 
 from .moondream import Moondream
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
 script_directory = os.path.dirname(os.path.abspath(__file__))
 
-cache_selected_model = None
-cache_moondream = None
-cache_tokenizer = None
-
 class MoondreamQuery:
-
+    def __init__(self):
+        self.selected_model = None
     @classmethod
     def INPUT_TYPES(s):
         return {"required": {
@@ -51,11 +49,8 @@ class MoondreamQuery:
 
         checkpoint_path = os.path.join(script_directory, f"checkpoints/{model}")
 
-        global cache_selected_model
-        global cache_moondream
-        global cache_tokenizer
-        if cache_moondream is None or cache_selected_model != model:
-            cache_selected_model = model
+        if not hasattr(self, "moondream") or self.moondream is None or self.selected_model != model:
+            self.selected_model = model
             model_safetensors_path = os.path.join(checkpoint_path, "model.safetensors")
             if os.path.exists(model_safetensors_path):
                 checkpoint_path = checkpoint_path
@@ -66,20 +61,23 @@ class MoondreamQuery:
                 except:
                     raise FileNotFoundError("No model found.")
 
-            start = time.time()
-            cache_tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
-            print(f"Loading tokenizer took {time.time() - start} seconds")
-            cache_moondream = Moondream.from_pretrained(checkpoint_path).to(device=device, dtype=dtype)
-            print(f"Loading model took {time.time() - start} seconds")
-            cache_moondream.eval()
-            print(f"Model loaded in {time.time() - start} seconds")
+            self.tokenizer = AutoTokenizer.from_pretrained(checkpoint_path)
+
+            def load_model():
+                start = time.time()
+                moondream = Moondream.from_pretrained(checkpoint_path).to(device=device, dtype=dtype)
+                moondream.eval()
+                print(f"Moondream model loaded in {time.time() - start:.2f}s")
+                return moondream
+
+            self.moondream = load_model_cached(checkpoint_path, load_model, device)
 
         answer_dict = {}
         if batch_size > 1:
             for i in range(batch_size):
                 image = Image.fromarray(np.clip(255. * images[i].cpu().numpy(),0,255).astype(np.uint8))
-                image_embeds = cache_moondream.encode_image(image)
-                answer = cache_moondream.answer_question(image_embeds, question, cache_tokenizer, max_new_tokens)
+                image_embeds = self.moondream.encode_image(image)
+                answer = self.moondream.answer_question(image_embeds, question, self.tokenizer, max_new_tokens)
                 answer_dict[str(i)] = answer
 
             formatted_answers = ",\n".join([f'"{frame}" : "{answer}"' for frame, answer in answer_dict.items()])
@@ -89,12 +87,12 @@ class MoondreamQuery:
             return formatted_output,
         else:
             image = Image.fromarray(np.clip(255. * images[0].cpu().numpy(),0,255).astype(np.uint8))
-            image_embeds = cache_moondream.encode_image(image)
-            answer = cache_moondream.answer_question(image_embeds, question, cache_tokenizer, max_new_tokens)
+            image_embeds = self.moondream.encode_image(image)
+            answer = self.moondream.answer_question(image_embeds, question, self.tokenizer, max_new_tokens)
 
         if not keep_model_loaded:
-            cache_moondream = None
-            cache_tokenizer = None
+            self.moondream = None
+            self.tokenizer = None
             comfy.model_management.soft_empty_cache()
         return answer,
 
